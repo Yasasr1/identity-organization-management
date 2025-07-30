@@ -57,6 +57,7 @@
         <module>components/org.wso2.carbon.identity.organization.resource.hierarchy.traverse.service</module>
         <module>components/org.wso2.carbon.identity.organization.resource.sharing.policy.management</module>
         <module>components/org.wso2.carbon.identity.organization.application.resource.hierarchy.traverse.service</module>
+        <module>components/org.wso2.carbon.identity.organization.service.invoker</module>
     </modules>
 
     <dependencyManagement>
@@ -214,6 +215,12 @@
             <dependency>
                 <groupId>org.wso2.carbon.identity.organization.management</groupId>
                 <artifactId>org.wso2.carbon.identity.organization.application.resource.hierarchy.traverse.service</artifactId>
+                <version>${project.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.wso2.carbon.identity.organization.management</groupId>
+                <artifactId>org.wso2.carbon.identity.organization.service.invoker</artifactId>
                 <version>${project.version}</version>
                 <scope>provided</scope>
             </dependency>
