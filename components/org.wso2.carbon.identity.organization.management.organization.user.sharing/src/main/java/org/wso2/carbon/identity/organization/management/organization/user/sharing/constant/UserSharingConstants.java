@@ -38,6 +38,8 @@ public class UserSharingConstants {
     public static final String USER = "User";
     public static final String BLANK = "";
     public static final String CORRELATION_ID_MDC = "Correlation-ID";
+    public static final String APPLICATION_DOMAIN = "Application";
+    public static final String SERVICE_PROVIDER_PROPERTY_NAME = "serviceProvider";
 
     public static final String SHARING_TYPE_SHARED = "Shared";
     public static final String SHARING_TYPE_INVITED = "Invited";
