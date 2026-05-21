@@ -144,6 +144,11 @@
             <artifactId>org.wso2.carbon.identity.testutil</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.wso2.carbon.identity.organization.management</groupId>
+            <artifactId>org.wso2.carbon.identity.organization.management.capability.governance</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
