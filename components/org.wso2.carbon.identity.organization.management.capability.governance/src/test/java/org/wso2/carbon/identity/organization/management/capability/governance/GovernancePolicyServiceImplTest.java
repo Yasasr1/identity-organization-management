@@ -65,6 +65,7 @@ public class GovernancePolicyServiceImplTest {
 
     private static final String SUPER_ORG_ID = "super-org-id";
     private static final String ORG_L1_ID = "org-l1-id";
+    private static final String SUPER_TENANT_DOMAIN = "carbon.super";
 
     private static final String RESOURCE_TYPE_APP = "APPLICATION";
     private static final String CAPABILITY_ADAPTIVE_SCRIPT = "ADAPTIVE_SCRIPT";
@@ -88,10 +89,11 @@ public class GovernancePolicyServiceImplTest {
         GovernancePolicyDataHolder.getInstance().setOrganizationManager(organizationManager);
         when(organizationManager.getChildOrganizationsIds(SUPER_ORG_ID, true))
                 .thenReturn(Collections.singletonList(ORG_L1_ID));
+        when(organizationManager.resolveTenantDomain(SUPER_ORG_ID)).thenReturn(SUPER_TENANT_DOMAIN);
         mockedUtils = mockStatic(Utils.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         mockedUtils.when(Utils::getOrganizationId).thenReturn(SUPER_ORG_ID);
         mockedOrgMgmtUtil = mockStatic(OrganizationManagementUtil.class, org.mockito.Mockito.CALLS_REAL_METHODS);
-        mockedOrgMgmtUtil.when(() -> OrganizationManagementUtil.isOrganization(SUPER_ORG_ID)).thenReturn(false);
+        mockedOrgMgmtUtil.when(() -> OrganizationManagementUtil.isOrganization(SUPER_TENANT_DOMAIN)).thenReturn(false);
     }
 
     @AfterClass

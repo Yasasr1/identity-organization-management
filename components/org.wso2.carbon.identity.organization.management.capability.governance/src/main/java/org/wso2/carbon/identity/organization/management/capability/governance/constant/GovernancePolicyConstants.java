@@ -112,6 +112,30 @@ public class GovernancePolicyConstants {
         }
     }
 
+    /**
+     * Resource types and their associated capabilities.
+     */
+    public static class ResourceType {
+
+        public static final String APPLICATION = "application";
+
+        /**
+         * Capabilities for the "application" resource type.
+         */
+        public static class Application {
+
+            public static final String ADAPTIVE_AUTH = "adaptive-auth";
+
+            private Application() {
+
+            }
+        }
+
+        private ResourceType() {
+
+        }
+    }
+
     private GovernancePolicyConstants() {
 
     }

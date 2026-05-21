@@ -138,7 +138,9 @@ public class GovernancePolicyServiceImpl implements GovernancePolicyService {
                     ERROR_CODE_POLICY_MANAGEMENT_NOT_PERMITTED.getDescription());
         }
         try {
-            if (OrganizationManagementUtil.isOrganization(governingOrgId)) {
+            String tenantDomain = GovernancePolicyDataHolder.getInstance().getOrganizationManager()
+                    .resolveTenantDomain(governingOrgId);
+            if (OrganizationManagementUtil.isOrganization(tenantDomain)) {
                 throw new GovernancePolicyMgtClientException(ERROR_CODE_POLICY_MANAGEMENT_NOT_PERMITTED.getCode(),
                         ERROR_CODE_POLICY_MANAGEMENT_NOT_PERMITTED.getMessage(),
                         ERROR_CODE_POLICY_MANAGEMENT_NOT_PERMITTED.getDescription());

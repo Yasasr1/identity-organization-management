@@ -61,7 +61,9 @@ public class GovernancePolicyEvaluatorImpl implements GovernancePolicyEvaluator 
             throws GovernancePolicyMgtException {
 
         try {
-            if (!OrganizationManagementUtil.isOrganization(orgId)) {
+            String tenantDomain = GovernancePolicyDataHolder.getInstance().getOrganizationManager()
+                    .resolveTenantDomain(orgId);
+            if (!OrganizationManagementUtil.isOrganization(tenantDomain)) {
                 throw new GovernancePolicyMgtClientException(ERROR_CODE_POLICY_EVALUATION_NOT_SUPPORTED.getCode(),
                         ERROR_CODE_POLICY_EVALUATION_NOT_SUPPORTED.getMessage(),
                         ERROR_CODE_POLICY_EVALUATION_NOT_SUPPORTED.getDescription());
