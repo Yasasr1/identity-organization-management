@@ -52,6 +52,7 @@ import org.wso2.carbon.identity.organization.management.application.dao.OrgAppli
 import org.wso2.carbon.identity.organization.management.application.internal.OrgApplicationMgtDataHolder;
 import org.wso2.carbon.identity.organization.management.application.model.MainApplicationDO;
 import org.wso2.carbon.identity.organization.management.application.model.SharedApplicationDO;
+import org.wso2.carbon.identity.organization.management.application.util.OrgApplicationManagerUtil;
 import org.wso2.carbon.identity.organization.management.service.OrganizationManager;
 import org.wso2.carbon.identity.organization.management.service.exception.OrganizationManagementClientException;
 import org.wso2.carbon.identity.organization.management.service.exception.OrganizationManagementException;
@@ -203,9 +204,13 @@ public class FragmentApplicationMgtListener extends AbstractApplicationMgtListen
                     AuthenticationScriptConfig authenticationScriptConfig =
                             localAndOutBoundAuthenticationConfig.getAuthenticationScriptConfig();
                     if (authenticationScriptConfig.isEnabled() &&
-                            !StringUtils.isBlank(authenticationScriptConfig.getContent())) {
-                        throw new IdentityApplicationManagementClientException(
-                                "Authentication script configuration not allowed for shared applications.");
+                            !StringUtils.isBlank(authenticationScriptConfig.getContent()) &&
+                            !OrgApplicationManagerUtil.isAdaptiveScriptUnchanged(existingApplication,
+                                    authenticationScriptConfig)) {
+                        if (OrgApplicationManagerUtil.isAdaptiveAuthBlockedByGovernance(tenantDomain)) {
+                            throw new IdentityApplicationManagementClientException(
+                                    "Authentication script configuration not allowed for shared applications.");
+                        }
                     }
                 }
             }

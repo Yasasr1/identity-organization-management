@@ -19,6 +19,7 @@ package org.wso2.carbon.identity.organization.management.capability.governance;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.osgi.annotation.bundle.Capability;
 import org.wso2.carbon.identity.organization.management.capability.governance.dao.GovernancePolicyDAO;
 import org.wso2.carbon.identity.organization.management.capability.governance.dao.GovernancePolicyDAOImpl;
 import org.wso2.carbon.identity.organization.management.capability.governance.exception.GovernancePolicyMgtClientException;
@@ -47,6 +48,14 @@ import static org.wso2.carbon.identity.organization.management.service.util.Util
 /**
  * Implementation of {@link GovernancePolicyService}.
  */
+@Capability(
+        namespace = "osgi.service",
+        attribute = {
+                "objectClass=org.wso2.carbon.identity.organization.management.capability" +
+                        ".governance.GovernancePolicyService",
+                "service.scope=singleton"
+        }
+)
 public class GovernancePolicyServiceImpl implements GovernancePolicyService {
 
     private static final Log LOG = LogFactory.getLog(GovernancePolicyServiceImpl.class);
@@ -138,7 +147,9 @@ public class GovernancePolicyServiceImpl implements GovernancePolicyService {
                     ERROR_CODE_POLICY_MANAGEMENT_NOT_PERMITTED.getDescription());
         }
         try {
-            if (OrganizationManagementUtil.isOrganization(governingOrgId)) {
+            String tenantDomain = GovernancePolicyDataHolder.getInstance().getOrganizationManager()
+                    .resolveTenantDomain(governingOrgId);
+            if (OrganizationManagementUtil.isOrganization(tenantDomain)) {
                 throw new GovernancePolicyMgtClientException(ERROR_CODE_POLICY_MANAGEMENT_NOT_PERMITTED.getCode(),
                         ERROR_CODE_POLICY_MANAGEMENT_NOT_PERMITTED.getMessage(),
                         ERROR_CODE_POLICY_MANAGEMENT_NOT_PERMITTED.getDescription());
