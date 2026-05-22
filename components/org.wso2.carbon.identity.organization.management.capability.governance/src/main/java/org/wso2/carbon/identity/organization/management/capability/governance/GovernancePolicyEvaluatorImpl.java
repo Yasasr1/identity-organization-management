@@ -19,6 +19,7 @@ package org.wso2.carbon.identity.organization.management.capability.governance;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.osgi.annotation.bundle.Capability;
 import org.wso2.carbon.identity.core.util.LambdaExceptionUtils;
 import org.wso2.carbon.identity.organization.management.capability.governance.dao.GovernancePolicyDAO;
 import org.wso2.carbon.identity.organization.management.capability.governance.dao.GovernancePolicyDAOImpl;
@@ -50,6 +51,14 @@ import static org.wso2.carbon.identity.organization.management.capability.govern
  * indicating whether a governance policy matched and the associated access decision.
  * If no ancestor has a matching policy, the result reflects no match (default deny).</p>
  */
+@Capability(
+        namespace = "osgi.service",
+        attribute = {
+                "objectClass=org.wso2.carbon.identity.organization.management.capability" +
+                        ".governance.GovernancePolicyEvaluator",
+                "service.scope=singleton"
+        }
+)
 public class GovernancePolicyEvaluatorImpl implements GovernancePolicyEvaluator {
 
     private static final Log LOG = LogFactory.getLog(GovernancePolicyEvaluatorImpl.class);
