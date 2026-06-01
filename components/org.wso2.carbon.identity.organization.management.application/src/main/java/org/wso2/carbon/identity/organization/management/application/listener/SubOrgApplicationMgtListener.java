@@ -117,6 +117,7 @@ public class SubOrgApplicationMgtListener extends AbstractApplicationMgtListener
                 StringUtils.isBlank(authenticationScriptConfig.getContent())) {
             return;
         }
+        authenticationScriptConfig.setContent(StringUtils.stripEnd(authenticationScriptConfig.getContent(), null));
         if (OrgApplicationManagerUtil.isAdaptiveScriptUnchanged(existingServiceProvider, authenticationScriptConfig)) {
             return;
         }

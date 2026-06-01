@@ -204,12 +204,15 @@ public class FragmentApplicationMgtListener extends AbstractApplicationMgtListen
                     AuthenticationScriptConfig authenticationScriptConfig =
                             localAndOutBoundAuthenticationConfig.getAuthenticationScriptConfig();
                     if (authenticationScriptConfig.isEnabled() &&
-                            !StringUtils.isBlank(authenticationScriptConfig.getContent()) &&
-                            !OrgApplicationManagerUtil.isAdaptiveScriptUnchanged(existingApplication,
-                                    authenticationScriptConfig)) {
-                        if (OrgApplicationManagerUtil.isAdaptiveAuthBlockedByGovernance(tenantDomain)) {
-                            throw new IdentityApplicationManagementClientException(
-                                    "Authentication script configuration not allowed for shared applications.");
+                            !StringUtils.isBlank(authenticationScriptConfig.getContent())) {
+                        authenticationScriptConfig.setContent(
+                                StringUtils.stripEnd(authenticationScriptConfig.getContent(), null));
+                        if (!OrgApplicationManagerUtil.isAdaptiveScriptUnchanged(existingApplication,
+                                authenticationScriptConfig)) {
+                            if (OrgApplicationManagerUtil.isAdaptiveAuthBlockedByGovernance(tenantDomain)) {
+                                throw new IdentityApplicationManagementClientException(
+                                        "Authentication script configuration not allowed for shared applications.");
+                            }
                         }
                     }
                 }
