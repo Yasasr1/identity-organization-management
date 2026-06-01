@@ -392,7 +392,8 @@ public class OrgApplicationManagerUtil {
         }
         AuthenticationScriptConfig existingScript = existingConfig.getAuthenticationScriptConfig();
         return existingScript.isEnabled() == newScript.isEnabled() &&
-                StringUtils.equals(existingScript.getContent(), newScript.getContent());
+                StringUtils.equals(StringUtils.stripEnd(existingScript.getContent(), null),
+                        StringUtils.stripEnd(newScript.getContent(), null));
     }
 
     /**
