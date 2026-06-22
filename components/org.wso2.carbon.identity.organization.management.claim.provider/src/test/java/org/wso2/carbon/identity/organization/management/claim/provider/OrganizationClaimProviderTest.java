@@ -25,7 +25,6 @@ import org.mockito.MockitoAnnotations;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 import org.wso2.carbon.identity.application.authentication.framework.model.AuthenticatedUser;
-import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.identity.oauth2.IdentityOAuth2Exception;
 import org.wso2.carbon.identity.oauth2.token.OAuthTokenReqMessageContext;
@@ -162,8 +161,6 @@ public class OrganizationClaimProviderTest {
         when(authenticatedUser.getUserResidentOrganization()).thenReturn(USER_ORG_ID);
         when(authenticatedUser.getAccessingOrganization()).thenReturn(AUTH_ORG_ID);
         when(authenticatedUser.isSharedUser()).thenReturn(false);
-        when(authenticatedUser.getFederatedIdPName())
-                .thenReturn(FrameworkConstants.ORGANIZATION_LOGIN_IDP_NAME);
         when(authenticatedUser.getUserId()).thenReturn(RESIDENT_USER_ID);
 
         UserAssociation userAssociation = Mockito.mock(UserAssociation.class);

@@ -21,7 +21,6 @@ package org.wso2.carbon.identity.organization.management.claim.provider;
 import org.apache.commons.lang.StringUtils;
 import org.wso2.carbon.identity.application.authentication.framework.exception.UserIdNotFoundException;
 import org.wso2.carbon.identity.application.authentication.framework.model.AuthenticatedUser;
-import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.identity.oauth2.IdentityOAuth2Exception;
 import org.wso2.carbon.identity.oauth2.authz.OAuthAuthzReqMessageContext;
@@ -171,9 +170,8 @@ public class OrganizationClaimProvider implements ClaimProvider, JWTAccessTokenC
             return authenticatedUser.getSharedUserId();
         }
 
-        if (FrameworkConstants.ORGANIZATION_LOGIN_IDP_NAME.equals(authenticatedUser.getFederatedIdPName()) &&
-                !StringUtils.equals(authenticatedUser.getAccessingOrganization(),
-                        authenticatedUser.getUserResidentOrganization())) {
+        if (!StringUtils.equals(authenticatedUser.getAccessingOrganization(),
+                authenticatedUser.getUserResidentOrganization())) {
             try {
                 UserAssociation userAssociation = getOrganizationUserSharingService()
                         .getUserAssociationOfAssociatedUserByOrgId(authenticatedUser.getUserId(),
