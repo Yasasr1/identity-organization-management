@@ -158,7 +158,16 @@ public class OrganizationProvisioningExecutor implements Executor {
             }
         }
 
-        addOrganization(context, organization, organizationManager);
+        // Organization creation is authorized against the organization in the carbon context, which must be the parent.
+        try {
+            PrivilegedCarbonContext.startTenantFlow();
+            PrivilegedCarbonContext carbonContext = PrivilegedCarbonContext.getThreadLocalCarbonContext();
+            carbonContext.setTenantDomain(context.getTenantDomain(), true);
+            carbonContext.setOrganizationId(parentOrganizationId);
+            addOrganization(context, organization, organizationManager);
+        } finally {
+            PrivilegedCarbonContext.endTenantFlow();
+        }
 
         // The handle is the tenant domain of the new organization, used by later flow steps and rollback.
         flowOrganization.setOrganizationHandle(organization.getOrganizationHandle());
