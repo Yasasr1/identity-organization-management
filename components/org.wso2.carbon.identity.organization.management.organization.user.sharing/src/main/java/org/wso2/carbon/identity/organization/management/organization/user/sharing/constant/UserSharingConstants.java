@@ -360,7 +360,13 @@ public class UserSharingConstants {
                 "One of the attribute names provided is null and must be valid."),
         ERROR_CODE_INVALID_FILTER_VALUE("10069",
                 "Invalid filter value provided: %s.",
-                "The filter value provided is invalid and cannot be processed.");
+                "The filter value provided is invalid and cannot be processed."),
+        ERROR_CODE_USER_SHARE_APPROVAL_PENDING("10070",
+                "A user share request is already pending approval.",
+                "A user share request for user: %s to organization: %s is already pending approval."),
+        ERROR_CODE_USER_SHARE_WORKFLOW("10071",
+                "Error while engaging the user share approval workflow.",
+                "Error while engaging the user share approval workflow for user: %s and organization: %s.");
 
         private final String code;
         private final String message;

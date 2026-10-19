@@ -68,6 +68,7 @@ import org.wso2.carbon.identity.organization.management.organization.user.sharin
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.models.usercriteria.UserIdList;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.util.OrganizationSharedUserUtil;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.util.SharingInitiatorContext;
+import org.wso2.carbon.identity.organization.management.organization.user.sharing.workflow.ShareUserWFRequestHandler;
 import org.wso2.carbon.identity.organization.management.service.OrganizationManager;
 import org.wso2.carbon.identity.organization.management.service.exception.OrganizationManagementClientException;
 import org.wso2.carbon.identity.organization.management.service.exception.OrganizationManagementException;
@@ -201,6 +202,31 @@ public class UserSharingPolicyHandlerServiceImplV2 implements UserSharingPolicyH
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(5);
     private static final Set<String> SUPPORTED_GET_ATTRIBUTES =
             new HashSet<>(Arrays.asList(SHARED_USER_SHARING_MODE_INCLUDED_KEY, SHARED_USER_ROLE_INCLUDED_KEY));
+    private final ShareUserWFRequestHandler shareUserWFRequestHandler = new ShareUserWFRequestHandler();
+
+    /**
+     * Shares the user with the given organizations synchronously, without engaging approval workflows. Used to
+     * execute a user share once its approval workflow is approved.
+     *
+     * @param userId                 ID of the user to share.
+     * @param organizations          Organizations to share the user with.
+     * @param sharingInitiatedOrgId  ID of the organization the share was requested from.
+     * @param sharingInitiatedUserId ID of the user who requested the share.
+     * @throws UserSharingMgtException If the share fails.
+     */
+    public void shareApprovedUser(String userId, List<SelectiveUserShareOrgDetailsV2DO> organizations,
+                                  String sharingInitiatedOrgId, String sharingInitiatedUserId)
+            throws UserSharingMgtException {
+
+        selectiveUserShareByUserIds(new UserIdList(Collections.singletonList(userId)), organizations,
+                sharingInitiatedOrgId, sharingInitiatedUserId);
+    }
+
+    private List<String> getUserIds(Map<String, UserCriteriaType> userCriteria) {
+
+        UserCriteriaType userIds = userCriteria.get(USER_IDS);
+        return userIds instanceof UserIdList ? ((UserIdList) userIds).getIds() : Collections.emptyList();
+    }
 
     @Override
     public void populateSelectiveUserShareV2(SelectiveUserShareV2DO selectiveUserShareV2DO)
@@ -222,6 +248,11 @@ public class UserSharingPolicyHandlerServiceImplV2 implements UserSharingPolicyH
         List<SelectiveUserShareOrgDetailsV2DO> validOrganizations =
                 filterValidOrganizations(organizations, sharingInitiatorContext.getSharingInitiatedOrgId());
 
+        // Hold back the shares that need approval. They are executed when the approval workflow completes.
+        Map<String, List<SelectiveUserShareOrgDetailsV2DO>> sharesToRunNow =
+                shareUserWFRequestHandler.engageWorkflows(getUserIds(userCriteria), validOrganizations,
+                        sharingInitiatorContext);
+
         // Run the selective user sharing logic asynchronously.
         CompletableFuture.runAsync(() -> {
                     logAsyncProcessing(ACTION_SELECTIVE_USER_SHARE,
@@ -231,9 +262,22 @@ public class UserSharingPolicyHandlerServiceImplV2 implements UserSharingPolicyH
                         initiateThreadLocalContext(sharingInitiatorContext.getSharingInitiatedTenantDomain(),
                                 sharingInitiatorContext.getSharingInitiatedTenantId(),
                                 sharingInitiatorContext.getSharingInitiatedUsername(), threadLocalProperties);
-                        processSelectiveUserShare(userCriteria, validOrganizations,
-                                sharingInitiatorContext.getSharingInitiatedOrgId(),
-                                sharingInitiatorContext.getSharingInitiatedUserId());
+                        if (sharesToRunNow == null) {
+                            processSelectiveUserShare(userCriteria, validOrganizations,
+                                    sharingInitiatorContext.getSharingInitiatedOrgId(),
+                                    sharingInitiatorContext.getSharingInitiatedUserId());
+                        } else {
+                            for (Map.Entry<String, List<SelectiveUserShareOrgDetailsV2DO>> share :
+                                    sharesToRunNow.entrySet()) {
+                                if (share.getValue().isEmpty()) {
+                                    continue;
+                                }
+                                processSelectiveUserShare(Collections.singletonMap(USER_IDS,
+                                                new UserIdList(Collections.singletonList(share.getKey()))),
+                                        share.getValue(), sharingInitiatorContext.getSharingInitiatedOrgId(),
+                                        sharingInitiatorContext.getSharingInitiatedUserId());
+                            }
+                        }
                     } finally {
                         PrivilegedCarbonContext.endTenantFlow();
                     }
