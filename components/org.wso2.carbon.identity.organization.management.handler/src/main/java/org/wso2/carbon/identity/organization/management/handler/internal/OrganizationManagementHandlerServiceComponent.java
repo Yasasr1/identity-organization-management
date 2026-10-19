@@ -43,9 +43,12 @@ import org.wso2.carbon.identity.organization.management.handler.SharedRoleMgtHan
 import org.wso2.carbon.identity.organization.management.handler.SharingPolicyCleanUpHandler;
 import org.wso2.carbon.identity.organization.management.handler.listener.ResidentIdPMgtListener;
 import org.wso2.carbon.identity.organization.management.handler.listener.SharedRoleMgtListener;
+import org.wso2.carbon.identity.organization.management.handler.workflow.AddOrganizationWFRequestHandler;
+import org.wso2.carbon.identity.organization.management.handler.workflow.OrganizationCreationApprovalHandler;
 import org.wso2.carbon.identity.organization.management.service.OrganizationManager;
 import org.wso2.carbon.identity.organization.resource.sharing.policy.management.ResourceSharingPolicyHandlerService;
 import org.wso2.carbon.identity.role.v2.mgt.core.RoleManagementService;
+import org.wso2.carbon.identity.workflow.mgt.extension.WorkflowRequestHandler;
 import org.wso2.carbon.idp.mgt.listener.IdentityProviderMgtListener;
 import org.wso2.carbon.user.core.service.RealmService;
 
@@ -77,6 +80,8 @@ public class OrganizationManagementHandlerServiceComponent {
             bundleContext.registerService(AbstractEventHandler.class, new OrganizationSessionHandler(), null);
             bundleContext.registerService(AbstractEventHandler.class, new FragmentApplicationMgtHandler(), null);
             bundleContext.registerService(AbstractEventHandler.class, new OrganizationVersionHandler(), null);
+            bundleContext.registerService(AbstractEventHandler.class, new OrganizationCreationApprovalHandler(), null);
+            bundleContext.registerService(WorkflowRequestHandler.class, new AddOrganizationWFRequestHandler(), null);
             bundleContext.registerService(AbstractEventHandler.class.getName(),
                     OrganizationManagementAuditLogHandler.getInstance(), null);
             bundleContext.registerService(IdentityProviderMgtListener.class.getName(), new ResidentIdPMgtListener(),
