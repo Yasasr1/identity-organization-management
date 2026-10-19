@@ -24,17 +24,23 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.context.PrivilegedCarbonContext;
+import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
 import org.wso2.carbon.identity.flow.execution.engine.graph.Executor;
 import org.wso2.carbon.identity.flow.execution.engine.model.ExecutorResponse;
 import org.wso2.carbon.identity.flow.execution.engine.model.FlowExecutionContext;
 import org.wso2.carbon.identity.flow.mgt.model.NodeConfig;
 import org.wso2.carbon.identity.organization.management.executor.internal.OrganizationManagementExecutorDataHolder;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.OrganizationUserSharingService;
+import org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.EditOperation;
+import org.wso2.carbon.identity.organization.management.organization.user.sharing.exception.UserSharingMgtException;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.models.UserAssociation;
 import org.wso2.carbon.identity.organization.management.service.OrganizationManager;
 import org.wso2.carbon.identity.organization.management.service.exception.OrganizationManagementException;
 import org.wso2.carbon.identity.role.v2.mgt.core.RoleManagementService;
 import org.wso2.carbon.identity.role.v2.mgt.core.exception.IdentityRoleManagementException;
+import org.wso2.carbon.user.api.UserStoreException;
+import org.wso2.carbon.user.core.common.AbstractUserStoreManager;
+import org.wso2.carbon.user.core.util.UserCoreUtil;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -93,13 +99,16 @@ public class OrganizationRoleAssignmentExecutor implements Executor {
                 return response;
             }
 
+            SharedRoleRestriction restriction = resolveSharedRoleRestriction(context, organizationManager,
+                    targetUserId, targetTenantDomain);
             PrivilegedCarbonContext.startTenantFlow();
             try {
                 PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(targetTenantDomain, true);
                 Set<String> assignedRoles = new LinkedHashSet<>(
                         roleManagementService.getRoleIdListOfUser(targetUserId, targetTenantDomain));
                 for (String roleId : roleIds) {
-                    assignRole(roleManagementService, roleId, targetUserId, context, targetTenantDomain, assignedRoles);
+                    assignRole(roleManagementService, roleId, targetUserId, context, targetTenantDomain, assignedRoles,
+                            restriction);
                 }
             } finally {
                 PrivilegedCarbonContext.endTenantFlow();
@@ -112,7 +121,8 @@ public class OrganizationRoleAssignmentExecutor implements Executor {
     }
 
     private void assignRole(RoleManagementService roleManagementService, String roleId, String targetUserId,
-                            FlowExecutionContext context, String targetTenantDomain, Set<String> assignedRoles) {
+                            FlowExecutionContext context, String targetTenantDomain, Set<String> assignedRoles,
+                            SharedRoleRestriction restriction) {
 
         try {
             String mainRoleId;
@@ -143,10 +153,77 @@ public class OrganizationRoleAssignmentExecutor implements Executor {
                 roleManagementService.updateUserListOfRole(sharedRoleId, Collections.singletonList(targetUserId),
                         Collections.emptyList(), targetTenantDomain);
                 assignedRoles.add(sharedRoleId);
+                addSharedRoleEditRestriction(sharedRoleId, targetTenantDomain, restriction, context);
             }
         } catch (IdentityRoleManagementException | RuntimeException e) {
             LOG.warn("Skipping configured organization role after assignment failure. Role: " + roleId
                     + ", tenant: " + targetTenantDomain + ", flow: " + context.getContextIdentifier(), e);
+        }
+    }
+
+    /**
+     * Resolves what is needed to record a role of a shared user as a shared-user role, the same way the user sharing
+     * service does when it assigns roles during a share. Without that record the role is not listed by the user
+     * sharing API and is not protected from being removed in the shared organization.
+     *
+     * @return The restriction details, or {@code null} when the user is not a shared user of the target organization.
+     */
+    private SharedRoleRestriction resolveSharedRoleRestriction(FlowExecutionContext context,
+                                                               OrganizationManager organizationManager,
+                                                               String targetUserId, String targetTenantDomain) {
+
+        if (NEW_ORGANIZATION.equals(getMetadataValue(context, PROVISION_TARGET))) {
+            // The user was created inside the new organization, so it is not a shared user.
+            return null;
+        }
+        OrganizationManagementExecutorDataHolder dataHolder = OrganizationManagementExecutorDataHolder.getInstance();
+        if (dataHolder.getOrganizationUserSharingService() == null || dataHolder.getRealmService() == null) {
+            return null;
+        }
+        try {
+            AbstractUserStoreManager userStoreManager = (AbstractUserStoreManager) dataHolder.getRealmService()
+                    .getTenantUserRealm(IdentityTenantUtil.getTenantId(targetTenantDomain)).getUserStoreManager();
+            String usernameWithDomain = userStoreManager.getUserNameFromUserID(targetUserId);
+            String permittedOrgId = organizationManager.resolveOrganizationId(context.getTenantDomain());
+            return new SharedRoleRestriction(UserCoreUtil.removeDomainFromName(usernameWithDomain),
+                    UserCoreUtil.extractDomainFromName(usernameWithDomain), permittedOrgId);
+        } catch (UserStoreException | OrganizationManagementException | RuntimeException e) {
+            LOG.warn("Unable to resolve the shared user to record role restrictions. Tenant: " + targetTenantDomain
+                    + ", flow: " + context.getContextIdentifier(), e);
+            return null;
+        }
+    }
+
+    private void addSharedRoleEditRestriction(String sharedRoleId, String targetTenantDomain,
+                                              SharedRoleRestriction restriction, FlowExecutionContext context) {
+
+        if (restriction == null) {
+            return;
+        }
+        try {
+            OrganizationManagementExecutorDataHolder.getInstance().getOrganizationUserSharingService()
+                    .addEditRestrictionsForSharedUserRole(sharedRoleId, restriction.username, targetTenantDomain,
+                            restriction.domainName, EditOperation.DELETE, restriction.permittedOrgId);
+        } catch (UserSharingMgtException | RuntimeException e) {
+            LOG.warn("Role assigned, but unable to record it as a shared user role. Role: " + sharedRoleId
+                    + ", tenant: " + targetTenantDomain + ", flow: " + context.getContextIdentifier(), e);
+        }
+    }
+
+    /**
+     * Shared user details needed to record a shared user role.
+     */
+    private static final class SharedRoleRestriction {
+
+        private final String username;
+        private final String domainName;
+        private final String permittedOrgId;
+
+        private SharedRoleRestriction(String username, String domainName, String permittedOrgId) {
+
+            this.username = username;
+            this.domainName = domainName;
+            this.permittedOrgId = permittedOrgId;
         }
     }
 
