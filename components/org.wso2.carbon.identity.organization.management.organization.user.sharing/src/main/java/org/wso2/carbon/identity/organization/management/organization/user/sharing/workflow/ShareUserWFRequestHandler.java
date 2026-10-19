@@ -67,6 +67,9 @@ public class ShareUserWFRequestHandler extends AbstractWorkflowRequestHandler {
 
     public static final String EVENT_ID = "SHARE_USER";
     private static final String ENTITY_TYPE = "SHARED_USER";
+    // Entity lock and event of the organization creation approval (AddOrganizationWFRequestHandler).
+    private static final String ORGANIZATION_ENTITY_TYPE = "ORGANIZATION";
+    private static final String ADD_ORGANIZATION_EVENT_ID = "ADD_ORGANIZATION";
     private static final Log LOG = LogFactory.getLog(ShareUserWFRequestHandler.class);
     private static final Log AUDIT_LOG = CarbonConstants.AUDIT_LOG;
 
@@ -137,8 +140,11 @@ public class ShareUserWFRequestHandler extends AbstractWorkflowRequestHandler {
         for (String userId : userIds) {
             List<SelectiveUserShareOrgDetailsV2DO> orgsToShareNow = new ArrayList<>();
             for (SelectiveUserShareOrgDetailsV2DO organization : organizations) {
-                // Only new shares need approval. Role updates of an existing share are left as they are.
+                /* Only new shares need approval. Role updates of an existing share are left as they are, and so
+                   are shares into an organization whose own creation is still pending approval (e.g. the creator
+                   being shared into the organization they just onboarded): that approval already covers them. */
                 if (isAlreadyShared(userId, organization.getOrganizationId()) ||
+                        isOrganizationCreationPending(organization.getOrganizationId()) ||
                         !startShareWorkflow(userId, organization, initiator)) {
                     orgsToShareNow.add(organization);
                 }
@@ -293,6 +299,19 @@ public class ShareUserWFRequestHandler extends AbstractWorkflowRequestHandler {
             throw new UserSharingMgtServerException(ERROR_CODE_USER_SHARE_WORKFLOW.getCode(),
                     ERROR_CODE_USER_SHARE_WORKFLOW.getMessage(),
                     String.format(ERROR_CODE_USER_SHARE_WORKFLOW.getDescription(), userId, orgId), e);
+        }
+    }
+
+    private boolean isOrganizationCreationPending(String orgId) throws UserSharingMgtServerException {
+
+        int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
+        try {
+            return getWorkflowManagementService().entityHasPendingWorkflowsOfType(
+                    new Entity(orgId, ORGANIZATION_ENTITY_TYPE, tenantId), ADD_ORGANIZATION_EVENT_ID);
+        } catch (WorkflowException e) {
+            throw new UserSharingMgtServerException(ERROR_CODE_USER_SHARE_WORKFLOW.getCode(),
+                    ERROR_CODE_USER_SHARE_WORKFLOW.getMessage(),
+                    "Error while checking pending creation approval of organization: " + orgId, e);
         }
     }
 
