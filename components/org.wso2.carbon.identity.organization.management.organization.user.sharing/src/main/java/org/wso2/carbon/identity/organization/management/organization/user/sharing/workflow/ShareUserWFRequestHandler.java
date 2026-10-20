@@ -302,7 +302,7 @@ public class ShareUserWFRequestHandler extends AbstractWorkflowRequestHandler {
         }
     }
 
-    private boolean isOrganizationCreationPending(String orgId) throws UserSharingMgtServerException {
+    static boolean isOrganizationCreationPending(String orgId) throws UserSharingMgtServerException {
 
         int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
         try {
@@ -315,7 +315,7 @@ public class ShareUserWFRequestHandler extends AbstractWorkflowRequestHandler {
         }
     }
 
-    private String resolveUsername(String userId, int tenantId) {
+    static String resolveUsername(String userId, int tenantId) {
 
         try {
             AbstractUserStoreManager userStoreManager = (AbstractUserStoreManager) OrganizationUserSharingDataHolder
@@ -327,7 +327,7 @@ public class ShareUserWFRequestHandler extends AbstractWorkflowRequestHandler {
         }
     }
 
-    private String resolveOrganizationName(String orgId) {
+    static String resolveOrganizationName(String orgId) {
 
         try {
             return OrganizationUserSharingDataHolder.getInstance().getOrganizationManager()
@@ -338,7 +338,7 @@ public class ShareUserWFRequestHandler extends AbstractWorkflowRequestHandler {
         }
     }
 
-    private static ArrayList<HashMap<String, String>> toRoleMaps(List<RoleWithAudienceDO> roles) {
+    static ArrayList<HashMap<String, String>> toRoleMaps(List<RoleWithAudienceDO> roles) {
 
         ArrayList<HashMap<String, String>> roleMaps = new ArrayList<>();
         if (roles == null) {
@@ -354,7 +354,7 @@ public class ShareUserWFRequestHandler extends AbstractWorkflowRequestHandler {
         return roleMaps;
     }
 
-    private static List<RoleWithAudienceDO> fromRoleMaps(Object value) {
+    static List<RoleWithAudienceDO> fromRoleMaps(Object value) {
 
         List<RoleWithAudienceDO> roles = new ArrayList<>();
         if (!(value instanceof Collection)) {
@@ -375,7 +375,7 @@ public class ShareUserWFRequestHandler extends AbstractWorkflowRequestHandler {
         return value == null ? null : value.toString();
     }
 
-    private static WorkflowManagementService getWorkflowManagementService() throws WorkflowException {
+    static WorkflowManagementService getWorkflowManagementService() throws WorkflowException {
 
         WorkflowManagementService service = (WorkflowManagementService) PrivilegedCarbonContext
                 .getThreadLocalCarbonContext().getOSGiService(WorkflowManagementService.class, null);

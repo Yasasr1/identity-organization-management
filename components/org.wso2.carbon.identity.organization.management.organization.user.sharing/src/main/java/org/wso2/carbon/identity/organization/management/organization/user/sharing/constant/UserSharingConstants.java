@@ -366,7 +366,10 @@ public class UserSharingConstants {
                 "A user share request for user: %s to organization: %s is already pending approval."),
         ERROR_CODE_USER_SHARE_WORKFLOW("10071",
                 "Error while engaging the user share approval workflow.",
-                "Error while engaging the user share approval workflow for user: %s and organization: %s.");
+                "Error while engaging the user share approval workflow for user: %s and organization: %s."),
+        ERROR_CODE_SHARED_USER_ROLES_APPROVAL_PENDING("10072",
+                "A role request is already pending approval.",
+                "A role request for user: %s in organization: %s is already pending approval.");
 
         private final String code;
         private final String message;

@@ -68,6 +68,7 @@ import org.wso2.carbon.identity.organization.management.organization.user.sharin
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.models.usercriteria.UserIdList;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.util.OrganizationSharedUserUtil;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.util.SharingInitiatorContext;
+import org.wso2.carbon.identity.organization.management.organization.user.sharing.workflow.AddSharedUserRolesWFRequestHandler;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.workflow.ShareUserWFRequestHandler;
 import org.wso2.carbon.identity.organization.management.service.OrganizationManager;
 import org.wso2.carbon.identity.organization.management.service.exception.OrganizationManagementClientException;
@@ -203,6 +204,8 @@ public class UserSharingPolicyHandlerServiceImplV2 implements UserSharingPolicyH
     private static final Set<String> SUPPORTED_GET_ATTRIBUTES =
             new HashSet<>(Arrays.asList(SHARED_USER_SHARING_MODE_INCLUDED_KEY, SHARED_USER_ROLE_INCLUDED_KEY));
     private final ShareUserWFRequestHandler shareUserWFRequestHandler = new ShareUserWFRequestHandler();
+    private final AddSharedUserRolesWFRequestHandler addSharedUserRolesWFRequestHandler =
+            new AddSharedUserRolesWFRequestHandler();
 
     /**
      * Shares the user with the given organizations synchronously, without engaging approval workflows. Used to
@@ -220,6 +223,54 @@ public class UserSharingPolicyHandlerServiceImplV2 implements UserSharingPolicyH
 
         selectiveUserShareByUserIds(new UserIdList(Collections.singletonList(userId)), organizations,
                 sharingInitiatedOrgId, sharingInitiatedUserId);
+    }
+
+    /**
+     * Assigns roles to a user already shared with an organization synchronously, without engaging approval
+     * workflows. Used to apply a role request once its approval workflow is approved.
+     *
+     * @param userId                 ID of the user in the organization the share was requested from.
+     * @param orgId                  ID of the organization the user is shared with.
+     * @param roles                  Roles to assign.
+     * @param sharingInitiatedOrgId  ID of the organization the role request was made from.
+     * @param sharingInitiatedUserId ID of the user who made the role request.
+     * @throws UserSharingMgtException If the role assignment fails.
+     */
+    public void addApprovedSharedUserRoles(String userId, String orgId, List<RoleWithAudienceDO> roles,
+                                           String sharingInitiatedOrgId, String sharingInitiatedUserId)
+            throws UserSharingMgtException {
+
+        PatchOperationDO addRoles = new PatchOperationDO(UserSharePatchOperation.ADD,
+                PATCH_PATH_PREFIX + orgId + PATCH_PATH_SUFFIX_ROLES, roles);
+        try {
+            updateSharedUserAttributesForUser(userId, sharingInitiatedOrgId, sharingInitiatedUserId,
+                    Collections.singletonList(addRoles));
+        } catch (OrganizationManagementException | IdentityRoleManagementException e) {
+            throw new UserSharingMgtServerException(ERROR_CODE_USER_SHARE_ROLE_ASSIGNMENT_UPDATE, e);
+        }
+    }
+
+    /**
+     * Returns the shared roles a user holds in an organization the user is shared with.
+     *
+     * @param userId ID of the user in the organization the user is shared from.
+     * @param orgId  ID of the organization the user is shared with.
+     * @return The shared roles, or an empty list if the user is not shared with the organization.
+     * @throws UserSharingMgtException If the roles could not be retrieved.
+     */
+    public List<RoleWithAudienceDO> getSharedRolesOfUserInOrganization(String userId, String orgId)
+            throws UserSharingMgtException {
+
+        try {
+            UserAssociation userAssociation =
+                    getOrganizationUserSharingService().getUserAssociationOfAssociatedUserByOrgId(userId, orgId);
+            if (userAssociation == null) {
+                return Collections.emptyList();
+            }
+            return getAssignedSharedRolesForSharedUserInOrganization(userAssociation, orgId);
+        } catch (OrganizationManagementException e) {
+            throw new UserSharingMgtServerException(ERROR_CODE_GET_ROLES_SHARED_WITH_SHARED_USER, e);
+        }
     }
 
     private List<String> getUserIds(Map<String, UserCriteriaType> userCriteria) {
@@ -422,6 +473,11 @@ public class UserSharingPolicyHandlerServiceImplV2 implements UserSharingPolicyH
 
         Map<String, UserCriteriaType> userCriteria = userSharePatchDO.getUserCriteria();
 
+        // Hold back the role additions that need approval. They are applied when the approval workflow completes.
+        Map<String, List<PatchOperationDO>> operationsToRunNow =
+                addSharedUserRolesWFRequestHandler.engageWorkflows(getUserIds(userCriteria),
+                        userSharePatchDO.getPatchOperations(), sharingInitiatorContext);
+
         // Run the shared user attribute update logic asynchronously.
         CompletableFuture.runAsync(() -> {
                     logAsyncProcessing(ACTION_USER_SHARE_ATTRIBUTE_UPDATE,
@@ -431,9 +487,24 @@ public class UserSharingPolicyHandlerServiceImplV2 implements UserSharingPolicyH
                         initiateThreadLocalContext(sharingInitiatorContext.getSharingInitiatedTenantDomain(),
                                 sharingInitiatorContext.getSharingInitiatedTenantId(),
                                 sharingInitiatorContext.getSharingInitiatedUsername(), threadLocalProperties);
-                        processUpdateSharedUserAttributes(userCriteria,
-                                sharingInitiatorContext.getSharingInitiatedOrgId(),
-                                sharingInitiatorContext.getSharingInitiatedUserId(), userSharePatchDO);
+                        if (operationsToRunNow == null) {
+                            processUpdateSharedUserAttributes(userCriteria,
+                                    sharingInitiatorContext.getSharingInitiatedOrgId(),
+                                    sharingInitiatorContext.getSharingInitiatedUserId(), userSharePatchDO);
+                        } else {
+                            for (Map.Entry<String, List<PatchOperationDO>> update : operationsToRunNow.entrySet()) {
+                                if (update.getValue().isEmpty()) {
+                                    continue;
+                                }
+                                UserSharePatchDO userUpdate = new UserSharePatchDO();
+                                userUpdate.setUserCriteria(Collections.singletonMap(USER_IDS,
+                                        new UserIdList(Collections.singletonList(update.getKey()))));
+                                userUpdate.setPatchOperations(update.getValue());
+                                processUpdateSharedUserAttributes(userUpdate.getUserCriteria(),
+                                        sharingInitiatorContext.getSharingInitiatedOrgId(),
+                                        sharingInitiatorContext.getSharingInitiatedUserId(), userUpdate);
+                            }
+                        }
                     } finally {
                         PrivilegedCarbonContext.endTenantFlow();
                     }

@@ -42,6 +42,7 @@ import org.wso2.carbon.identity.organization.management.organization.user.sharin
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.listener.SharedUserProfileUpdateGovernanceEventListener;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.listener.SharedUserRoleGovernanceListener;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.listener.SharingOrganizationCreatorUserEventHandler;
+import org.wso2.carbon.identity.organization.management.organization.user.sharing.workflow.AddSharedUserRolesWFRequestHandler;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.workflow.ShareUserWFRequestHandler;
 import org.wso2.carbon.identity.organization.management.role.management.service.RoleManager;
 import org.wso2.carbon.identity.organization.management.service.OrganizationManager;
@@ -92,6 +93,8 @@ public class OrganizationUserSharingServiceComponent {
         bundleContext.registerService(UserSharingPolicyHandlerServiceV2.class.getName(),
                 userSharingPolicyHandlerServiceV2, null);
         bundleContext.registerService(WorkflowRequestHandler.class.getName(), new ShareUserWFRequestHandler(), null);
+        bundleContext.registerService(WorkflowRequestHandler.class.getName(),
+                new AddSharedUserRolesWFRequestHandler(), null);
         LOG.debug("OrganizationUserSharingServiceComponent-V2 activated successfully.");
     }
 
