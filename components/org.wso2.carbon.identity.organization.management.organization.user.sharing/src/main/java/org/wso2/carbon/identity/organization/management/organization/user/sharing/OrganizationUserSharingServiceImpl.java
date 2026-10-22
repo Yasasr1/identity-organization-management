@@ -64,6 +64,7 @@ import static org.wso2.carbon.identity.organization.management.organization.user
 import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.ID_CLAIM_READ_ONLY;
 import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.PRIMARY_DOMAIN;
 import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.PROCESS_ADD_SHARED_USER;
+import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.PROCESS_DELETE_SHARED_USER;
 import static org.wso2.carbon.identity.organization.management.service.constant.OrganizationManagementConstants.ErrorMessages.ERROR_CODE_ERROR_CREATE_SHARED_USER;
 import static org.wso2.carbon.identity.organization.management.service.constant.OrganizationManagementConstants.ErrorMessages.ERROR_CODE_ERROR_DELETE_SHARED_USER;
 import static org.wso2.carbon.identity.organization.management.service.util.Utils.handleServerException;
@@ -291,8 +292,11 @@ public class OrganizationUserSharingServiceImpl implements OrganizationUserShari
             startTenantFlow(tenantDomain);
             PrivilegedCarbonContext.getThreadLocalCarbonContext().setOrganizationId(organizationId);
             PrivilegedCarbonContext.getThreadLocalCarbonContext().setUsername(requestInitiator);
+            // Marks the deletion as the removal of a shared profile, as PROCESS_ADD_SHARED_USER does for its creation.
+            IdentityUtil.threadLocalProperties.get().put(PROCESS_DELETE_SHARED_USER, true);
             userStoreManager.deleteUserWithID(userId);
         } finally {
+            IdentityUtil.threadLocalProperties.get().remove(PROCESS_DELETE_SHARED_USER);
             endTenantFlow();
         }
     }

@@ -149,6 +149,7 @@ public class UserSharingConstants {
             "/api/server/v1/users/%s/shared-roles?orgId=%s";
 
     public static final String PROCESS_ADD_SHARED_USER = "processAddSharedUser";
+    public static final String PROCESS_DELETE_SHARED_USER = "processDeleteSharedUser";
 
     // Events fired once a user is shared with, or unshared from, an organization.
     public static final String EVENT_POST_SHARE_USER = "POST_SHARE_USER";
