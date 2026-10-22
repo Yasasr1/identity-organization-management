@@ -150,6 +150,15 @@ public class UserSharingConstants {
 
     public static final String PROCESS_ADD_SHARED_USER = "processAddSharedUser";
 
+    // Events fired once a user is shared with, or unshared from, an organization.
+    public static final String EVENT_POST_SHARE_USER = "POST_SHARE_USER";
+    public static final String EVENT_POST_UNSHARE_USER = "POST_UNSHARE_USER";
+    public static final String EVENT_PROP_SHARED_USER_ID = "SHARED_USER_ID";
+    public static final String EVENT_PROP_SHARED_ORGANIZATION_ID = "SHARED_ORGANIZATION_ID";
+    public static final String EVENT_PROP_ASSOCIATED_USER_ID = "ASSOCIATED_USER_ID";
+    public static final String EVENT_PROP_ASSOCIATED_ORGANIZATION_ID = "ASSOCIATED_ORGANIZATION_ID";
+    public static final String EVENT_PROP_SHARED_TYPE = "SHARED_TYPE";
+
     /*
     Minimum permissions required for org creator to logged in to the console and view user, groups, roles, SP,
     IDP sections.

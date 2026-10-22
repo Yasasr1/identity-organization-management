@@ -18,11 +18,17 @@
 
 package org.wso2.carbon.identity.organization.management.organization.user.sharing;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.osgi.annotation.bundle.Capability;
 import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.identity.core.model.ExpressionNode;
 import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
+import org.wso2.carbon.identity.event.IdentityEventConstants;
+import org.wso2.carbon.identity.event.IdentityEventException;
+import org.wso2.carbon.identity.event.event.Event;
+import org.wso2.carbon.identity.event.services.IdentityEventService;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.EditOperation;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.SharedType;
 import org.wso2.carbon.identity.organization.management.organization.user.sharing.dao.OrganizationUserSharingDAO;
@@ -43,10 +49,18 @@ import org.wso2.carbon.user.core.util.UserCoreUtil;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.CLAIM_MANAGED_ORGANIZATION;
 import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.DEFAULT_PROFILE;
+import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.EVENT_POST_SHARE_USER;
+import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.EVENT_POST_UNSHARE_USER;
+import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.EVENT_PROP_ASSOCIATED_ORGANIZATION_ID;
+import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.EVENT_PROP_ASSOCIATED_USER_ID;
+import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.EVENT_PROP_SHARED_ORGANIZATION_ID;
+import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.EVENT_PROP_SHARED_TYPE;
+import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.EVENT_PROP_SHARED_USER_ID;
 import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.ID_CLAIM_READ_ONLY;
 import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.PRIMARY_DOMAIN;
 import static org.wso2.carbon.identity.organization.management.organization.user.sharing.constant.UserSharingConstants.PROCESS_ADD_SHARED_USER;
@@ -67,6 +81,7 @@ import static org.wso2.carbon.identity.organization.management.service.util.Util
 )
 public class OrganizationUserSharingServiceImpl implements OrganizationUserSharingService {
 
+    private static final Log LOG = LogFactory.getLog(OrganizationUserSharingServiceImpl.class);
     private final OrganizationUserSharingDAO organizationUserSharingDAO = new OrganizationUserSharingDAOImpl();
 
     @Override
@@ -253,12 +268,18 @@ public class OrganizationUserSharingServiceImpl implements OrganizationUserShari
             String organizationId = userAssociation.getOrganizationId();
             String tenantDomain = getOrganizationManager().resolveTenantDomain(organizationId);
             int tenantId = IdentityTenantUtil.getTenantId(tenantDomain);
+            String initiatingTenantDomain = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantDomain();
+            String userName = null;
             try {
                 AbstractUserStoreManager sharedOrgUserStoreManager = getAbstractUserStoreManager(tenantId);
+                userName = resolveUserName(sharedOrgUserStoreManager, userId);
                 deleteUserInTenantFlow(sharedOrgUserStoreManager, userId, tenantDomain, organizationId);
             } catch (UserStoreException e) {
                 throw handleServerException(ERROR_CODE_ERROR_DELETE_SHARED_USER, e, userId, organizationId);
             }
+            fireUserSharingEvent(EVENT_POST_UNSHARE_USER, initiatingTenantDomain, userId, organizationId,
+                    userAssociation.getAssociatedUserId(), userAssociation.getUserResidentOrganizationId(), userName,
+                    userAssociation.getSharedType());
         }
     }
 
@@ -290,6 +311,9 @@ public class OrganizationUserSharingServiceImpl implements OrganizationUserShari
     private void shareOrganizationUserWithOrWithoutType(String orgId, String associatedUserId, String associatedOrgId,
                                                         SharedType sharedType) throws OrganizationManagementException {
 
+        String initiatingTenantDomain = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantDomain();
+        String sharedUserId;
+        String sharedUserName;
         try {
             String suborgTenantDomain = getOrganizationManager().resolveTenantDomain(orgId);
             startTenantFlow(suborgTenantDomain);
@@ -333,6 +357,8 @@ public class OrganizationUserSharingServiceImpl implements OrganizationUserShari
                 defaultUserStore.addUser(userName, generatePassword(), null, userClaims, DEFAULT_PROFILE);
             }
             String userId = userStoreManager.getUserIDFromUserName(UserCoreUtil.addDomainToName(userName, domain));
+            sharedUserId = userId;
+            sharedUserName = userName;
             if (SharedType.NOT_SPECIFIED.equals(sharedType)) {
                 organizationUserSharingDAO.createOrganizationUserAssociation(userId, orgId, associatedUserId,
                         associatedOrgId);
@@ -345,6 +371,52 @@ public class OrganizationUserSharingServiceImpl implements OrganizationUserShari
         } finally {
             IdentityUtil.threadLocalProperties.get().remove(PROCESS_ADD_SHARED_USER);
             endTenantFlow();
+        }
+        fireUserSharingEvent(EVENT_POST_SHARE_USER, initiatingTenantDomain, sharedUserId, orgId, associatedUserId,
+                associatedOrgId, sharedUserName, sharedType);
+    }
+
+    private String resolveUserName(AbstractUserStoreManager userStoreManager, String userId) {
+
+        try {
+            return userStoreManager.getUser(userId, null).getUsername();
+        } catch (UserStoreException e) {
+            LOG.debug("Could not resolve the username of shared user: " + userId, e);
+            return null;
+        }
+    }
+
+    /**
+     * Fire an event announcing that a user was shared with, or unshared from, an organization. The event is raised
+     * in the organization that initiated the operation, so that its webhooks, and those of its ancestors subscribed
+     * to it, are notified. A failure to fire the event is logged and does not fail the share.
+     */
+    private void fireUserSharingEvent(String eventName, String initiatingTenantDomain, String sharedUserId,
+                                      String sharedOrgId, String associatedUserId, String associatedOrgId,
+                                      String userName, SharedType sharedType) {
+
+        IdentityEventService eventService = OrganizationUserSharingDataHolder.getInstance().getIdentityEventService();
+        if (eventService == null) {
+            LOG.debug("Identity event service is not available. Skipping the " + eventName + " event.");
+            return;
+        }
+        Map<String, Object> eventProperties = new HashMap<>();
+        eventProperties.put(IdentityEventConstants.EventProperty.TENANT_DOMAIN, initiatingTenantDomain);
+        eventProperties.put(EVENT_PROP_SHARED_USER_ID, sharedUserId);
+        eventProperties.put(EVENT_PROP_SHARED_ORGANIZATION_ID, sharedOrgId);
+        eventProperties.put(EVENT_PROP_ASSOCIATED_USER_ID, associatedUserId);
+        eventProperties.put(EVENT_PROP_ASSOCIATED_ORGANIZATION_ID, associatedOrgId);
+        if (userName != null) {
+            eventProperties.put(IdentityEventConstants.EventProperty.USER_NAME, userName);
+        }
+        if (sharedType != null) {
+            eventProperties.put(EVENT_PROP_SHARED_TYPE, sharedType.name());
+        }
+        try {
+            eventService.handleEvent(new Event(eventName, eventProperties));
+        } catch (IdentityEventException | RuntimeException e) {
+            LOG.warn("Error while firing the " + eventName + " event for user: " + associatedUserId +
+                    " and organization: " + sharedOrgId, e);
         }
     }
 }
