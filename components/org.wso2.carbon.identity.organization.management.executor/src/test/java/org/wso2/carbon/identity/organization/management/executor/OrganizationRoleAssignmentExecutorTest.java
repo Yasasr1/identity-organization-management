@@ -35,6 +35,7 @@ import org.wso2.carbon.identity.organization.management.organization.user.sharin
 import org.wso2.carbon.identity.organization.management.service.OrganizationManager;
 import org.wso2.carbon.identity.organization.management.service.exception.OrganizationManagementException;
 import org.wso2.carbon.identity.role.v2.mgt.core.RoleManagementService;
+import org.wso2.carbon.identity.role.v2.mgt.core.exception.IdentityRoleManagementClientException;
 import org.wso2.carbon.identity.role.v2.mgt.core.exception.IdentityRoleManagementException;
 import org.wso2.carbon.identity.role.v2.mgt.core.model.RoleBasicInfo;
 
@@ -176,6 +177,40 @@ public class OrganizationRoleAssignmentExecutorTest {
         Assert.assertEquals(executor.execute(context).getResult(), STATUS_COMPLETE);
 
         verifyAssignment("child-role", USER_ID);
+    }
+
+    @Test
+    public void testAncestorRoleOfInheritedFlowResolvesThroughSharedRole() throws Exception {
+
+        // The flow is inherited from an ancestor organization, so it holds the ancestor's role ID.
+        FlowExecutionContext context = context("[\"ancestor-role\"]", true);
+        when(roleManagementService.getRoleBasicInfoById("ancestor-role", PARENT_TENANT))
+                .thenThrow(new IdentityRoleManagementClientException("RMA-60007", "Role not found"));
+        when(roleManagementService.getMainRoleToSharedRoleMappingsBySubOrg(
+                Collections.singletonList("ancestor-role"), PARENT_TENANT))
+                .thenReturn(Collections.singletonMap("ancestor-role", "parent-shared-role"));
+        shareRole("ancestor-role", "child-role");
+
+        Assert.assertEquals(executor.execute(context).getResult(), STATUS_COMPLETE);
+
+        verifyAssignment("child-role", USER_ID);
+    }
+
+    @Test
+    public void testUnknownRoleNotSharedWithFlowOrganizationIsSkipped() throws Exception {
+
+        FlowExecutionContext context = context("[\"unknown-role\",\"role-2\"]", true);
+        when(roleManagementService.getRoleBasicInfoById("unknown-role", PARENT_TENANT))
+                .thenThrow(new IdentityRoleManagementClientException("RMA-60007", "Role not found"));
+        when(roleManagementService.getMainRoleToSharedRoleMappingsBySubOrg(
+                Collections.singletonList("unknown-role"), PARENT_TENANT)).thenReturn(Collections.emptyMap());
+        shareRole("role-2", "child-role-2");
+
+        Assert.assertEquals(executor.execute(context).getResult(), STATUS_COMPLETE);
+
+        verifyAssignment("child-role-2", USER_ID);
+        verify(roleManagementService, never()).getMainRoleToSharedRoleMappingsBySubOrg(
+                Collections.singletonList("unknown-role"), CHILD_TENANT);
     }
 
     @Test

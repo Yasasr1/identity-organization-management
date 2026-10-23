@@ -37,7 +37,9 @@ import org.wso2.carbon.identity.organization.management.organization.user.sharin
 import org.wso2.carbon.identity.organization.management.service.OrganizationManager;
 import org.wso2.carbon.identity.organization.management.service.exception.OrganizationManagementException;
 import org.wso2.carbon.identity.role.v2.mgt.core.RoleManagementService;
+import org.wso2.carbon.identity.role.v2.mgt.core.exception.IdentityRoleManagementClientException;
 import org.wso2.carbon.identity.role.v2.mgt.core.exception.IdentityRoleManagementException;
+import org.wso2.carbon.identity.role.v2.mgt.core.model.RoleBasicInfo;
 import org.wso2.carbon.user.api.UserStoreException;
 import org.wso2.carbon.user.core.common.AbstractUserStoreManager;
 import org.wso2.carbon.user.core.util.UserCoreUtil;
@@ -130,14 +132,12 @@ public class OrganizationRoleAssignmentExecutor implements Executor {
             PrivilegedCarbonContext.startTenantFlow();
             try {
                 PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(context.getTenantDomain(), true);
-                if (roleManagementService.getRoleBasicInfoById(roleId, context.getTenantDomain()) == null) {
+                mainRoleId = resolveMainRoleId(roleManagementService, roleId, context);
+                if (mainRoleId == null) {
                     LOG.warn("Skipping configured role unavailable in the parent tenant. Role: " + roleId
                             + ", tenant: " + context.getTenantDomain() + ", flow: " + context.getContextIdentifier());
                     return;
                 }
-                Map<String, String> sourceMappings = roleManagementService.getSharedRoleToMainRoleMappingsBySubOrg(
-                        Collections.singletonList(roleId), context.getTenantDomain());
-                mainRoleId = sourceMappings.getOrDefault(roleId, roleId);
             } finally {
                 PrivilegedCarbonContext.endTenantFlow();
             }
@@ -159,6 +159,35 @@ public class OrganizationRoleAssignmentExecutor implements Executor {
             LOG.warn("Skipping configured organization role after assignment failure. Role: " + roleId
                     + ", tenant: " + targetTenantDomain + ", flow: " + context.getContextIdentifier(), e);
         }
+    }
+
+    /**
+     * Resolves the main role of a configured role. The role is either a role of the organization running the flow, or,
+     * when the flow is inherited from an ancestor organization, a role of that ancestor that is shared with the
+     * organization running the flow (the flow is then configured with the ancestor's role ID).
+     *
+     * @return The main role ID, or {@code null} when the role is not available to the organization running the flow.
+     */
+    private String resolveMainRoleId(RoleManagementService roleManagementService, String roleId,
+                                     FlowExecutionContext context) throws IdentityRoleManagementException {
+
+        RoleBasicInfo role = null;
+        try {
+            role = roleManagementService.getRoleBasicInfoById(roleId, context.getTenantDomain());
+        } catch (IdentityRoleManagementClientException e) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Role: " + roleId + " is not a role of tenant: " + context.getTenantDomain()
+                        + ". Checking whether it is an ancestor role shared with it.");
+            }
+        }
+        if (role != null) {
+            Map<String, String> sourceMappings = roleManagementService.getSharedRoleToMainRoleMappingsBySubOrg(
+                    Collections.singletonList(roleId), context.getTenantDomain());
+            return sourceMappings.getOrDefault(roleId, roleId);
+        }
+        Map<String, String> sharedWithFlowOrg = roleManagementService.getMainRoleToSharedRoleMappingsBySubOrg(
+                Collections.singletonList(roleId), context.getTenantDomain());
+        return StringUtils.isNotBlank(sharedWithFlowOrg.get(roleId)) ? roleId : null;
     }
 
     /**
